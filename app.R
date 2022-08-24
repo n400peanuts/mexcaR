@@ -14,7 +14,6 @@ source('tools/mexca_fun.R')
 # UI - GENERAL --------------------------------------------------------------
 
 ui <- fillPage(
-  useShinyFeedback(),
   titlePanel("mexcaR"),
   fluidRow(
     column(2,
@@ -35,16 +34,18 @@ ui <- fillPage(
              uiOutput("slider")
            )
     ),
-    column(4,
-           withLoader(plotOutput('frame_plot'), type = 'html', loader = 'loader3'),
-           wellPanel(
-             span(textOutput('text_output'),
-                  style='color:black'
-             )
-           ),
-    ),
-    column(5,
-           withLoader(plotOutput('au'), type = 'html', loader = 'loader3')
+    fluidRow(
+      column(5,
+             withLoader(plotOutput('frame_plot'), type = 'html', loader = 'loader3'),
+             wellPanel(
+               span(textOutput('text_output'),
+                    style='color:black'
+               )
+             ),
+      ),
+      column(4,
+             withLoader(plotOutput('au'), type = 'html', loader = 'loader3')
+      )
     )
   )
 )
@@ -109,9 +110,11 @@ server <- function(input, output, session) {
       imgs <- list.files('video_frames_annotated_demo', full.names = T)
       
     } else {
+      
       annotate_images()
       images_folder_name <- tools::file_path_sans_ext(input_name())
       imgs <- list.files(paste0('video_frames_annotated_', images_folder_name), full.names = T)
+      
     }
     
     selected_frame <- input$frame_selector
@@ -124,7 +127,7 @@ server <- function(input, output, session) {
     
     if (is.null(input$your_csv)){
       mexca_data_clean <- read.csv('data/debate_output_tidy.csv')
-
+      
     } else {
       mexca_data_clean <- tidy_mexca()
     }
@@ -144,6 +147,8 @@ server <- function(input, output, session) {
                    filter(frame %in% frame_seq)%>%
                    pull(text_token) %>% unique())
   })
+  
+  
   
   output$frame_plot <- renderPlot(ggimage(plot_images()), res = 96)
   output$au <- renderPlot(au_interactive(), res = 96)
