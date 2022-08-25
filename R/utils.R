@@ -176,8 +176,6 @@ draw_face_boxes_on_frame <- function(mexca_output, facial_landamarks = T, keep_v
   
 }
 
-
-
 # plot AUs ------------------------------------------------------------------
 
 plot_AUs <- function(dataframe){
@@ -209,4 +207,18 @@ plot_AUs <- function(dataframe){
 cleanup <- function(frame_folder, annotated_frame_folder){
   unlink(frame_folder, recursive = T, force = T)
   unlink(annotated_frame_folder, recursive = T, force = T)
+}
+
+# download video ------------------------------------------------------------------------------
+download_video <- function(input, file, input_datapath) {
+  
+  maximum_frame <- floor(av_video_info(input_datapath)$video['framerate'])
+  
+  images_folder_name <- tools::file_path_sans_ext(input)
+  
+  imgs <- list.files(paste0('video_frames_annotated_', images_folder_name), full.names = T)
+  
+  av::av_encode_video(input = gtools::mixedsort(imgs), 
+                      output = file, framerate = maximum_frame)
+  
 }

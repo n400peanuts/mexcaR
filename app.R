@@ -160,19 +160,17 @@ server <- function(input, output, session) {
     },
     content = function(file) {
       if(!is.null(input$your_mp4)){
-        maximum_frame <- floor(av_video_info(input$your_mp4$datapath)$video['framerate'])
-        images_folder_name <- tools::file_path_sans_ext(input_name())
-        imgs <- list.files(paste0('video_frames_annotated_', images_folder_name), full.names = T)
-        av::av_encode_video(input = gtools::mixedsort(imgs), 
-                            output = file, framerate = maximum_frame)
+        download_video(input = tools::file_path_sans_ext(input_name()),
+                       file = file,
+                       input_datapath = input$your_mp4$datapath)
       } else {
-        maximum_frame <- floor(av::av_video_info('data/debate.mp4')$video['framerate'])
-        imgs <- list.files('video_frames_annotated_demo', full.names = TRUE)
-        av::av_encode_video(input = gtools::mixedsort(imgs), 
-                            output = file, framerate = maximum_frame)
+        download_video(input = 'demo',
+                       file = file,
+                       input_datapath = 'data/debate.mp4')
       }
     }
   )
+  
   
   output$preview <- DT::renderDataTable(DT::datatable({
     if (is.null(input$your_csv)){
