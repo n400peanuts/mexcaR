@@ -31,18 +31,7 @@ server <- function(input, output, session) {
     
     req(input$your_csv)
     req(input$your_mp4)
-    
-    csv_file <- input$your_csv
-    mp4_file <- input$your_mp4
-    
-    ext_1 <- tools::file_ext(csv_file); ext_2 <- tools::file_ext(mp4_file)
-    
-    validate(need(ext_1 == 'csv', 'Please upload a csv file')); validate(need(ext_2 == 'mp4', 'Please upload a mp4 file'))
-    
-    mexca_file <- csv_file$datapath
-    video_file <- mp4_file$datapath
-    
-    df <- load_input(video_path = video_file, mexca_path = mexca_file, image_folder_name = input_name())
+    df <- load_input(video_path = input$your_mp4, mexca_path = input$your_csv, image_folder_name = input_name())
     
     return(df)
   })
@@ -86,10 +75,7 @@ server <- function(input, output, session) {
       imgs <- list.files(paste0('video_frames_annotated_', images_folder_name), full.names = T)
     }
     
-    selected_frame <- input$frame_selector
-    imgs <- gtools::mixedsort(imgs) #reorder the frames by last number
-    png::readPNG(imgs[selected_frame]) -> img
-    return(img)
+    plot_frames(images = imgs, selected_frame = input$frame_selector)
   })
   
   
@@ -162,11 +148,11 @@ server <- function(input, output, session) {
       if(!is.null(input$your_mp4)){
         download_video(input = tools::file_path_sans_ext(input_name()),
                        file = file,
-                       input_datapath = input$your_mp4$datapath)
+                       input_video_path = input$your_mp4$datapath)
       } else {
         download_video(input = 'demo',
                        file = file,
-                       input_datapath = 'data/debate.mp4')
+                       input_video_path = 'data/debate.mp4')
       }
     }
   )

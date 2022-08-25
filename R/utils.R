@@ -74,17 +74,25 @@ unpack_speech_dialogue <- function(dataframe){
   
 }
 
-# load files ------------------------------------------------------------------
+# load input ------------------------------------------------------------------
 
 load_input <- function(video_path, mexca_path, image_folder_name){
+  ext_1 <- tools::file_ext(mexca_path)
+  ext_2 <- tools::file_ext(video_path)
   
-  out_df <- read.csv(mexca_path)
+  validate(need(ext_1 == 'csv', 'Invalid file; Please upload a csv file'))
+  validate(need(ext_2 == 'mp4', 'Invalid file; Please upload a mp4 file'))
+  
+  mexca_file_path <- mexca_path$datapath
+  video_file_path <- video_path$datapath
+  
+  out_df <- read.csv(mexca_file_path)
   output_folder <- paste0('video_frames_', tools::file_path_sans_ext(image_folder_name))
   
   print('converting video to image sequence')
   dir.create(output_folder)
-  framerate <- av_video_info(video_path)$video["framerate"]
-  av_video_images(video = video_path, destdir = output_folder, format = 'png', fps = framerate) 
+  framerate <- av_video_info(video_file_path)$video["framerate"]
+  av_video_images(video = video_file_path, destdir = output_folder, format = 'png', fps = framerate) 
   
   return(out_df)
 }
@@ -203,6 +211,15 @@ plot_AUs <- function(dataframe){
   
 }
 
+# plot frames (i.e., plot annotated frames) -----------------------------------------------------------------------
+plot_frames <- function(images, selected_frame) {
+  imgs_ <- gtools::mixedsort(images) #reorder the frames by last number
+  png::readPNG(imgs_[selected_frame]) -> img
+  return(img)
+  
+}
+
+
 # mexcaR cleanup: delete temporary folders -----------------------------------------------------
 cleanup <- function(frame_folder, annotated_frame_folder){
   unlink(frame_folder, recursive = T, force = T)
@@ -210,15 +227,10 @@ cleanup <- function(frame_folder, annotated_frame_folder){
 }
 
 # download video ------------------------------------------------------------------------------
-download_video <- function(input, file, input_datapath) {
-  
-  maximum_frame <- floor(av_video_info(input_datapath)$video['framerate'])
-  
+download_video <- function(input, file, input_video_path) {
+  maximum_frame <- floor(av::av_video_info(input_video_path)$video['framerate'])
   images_folder_name <- tools::file_path_sans_ext(input)
-  
   imgs <- list.files(paste0('video_frames_annotated_', images_folder_name), full.names = T)
-  
   av::av_encode_video(input = gtools::mixedsort(imgs), 
                       output = file, framerate = maximum_frame)
-  
 }
