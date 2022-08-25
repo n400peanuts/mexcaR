@@ -74,25 +74,6 @@ unpack_speech_dialogue <- function(dataframe){
   
 }
 
-# write_video ------------------------------------------------------------------
-# function to create and save a video from a set of images
-write_video <- function(inpath, outpath){
-  print('converting image sequence to video')
-  ## list file names and read in
-  imgs <- list.files(inpath, full.names = TRUE)
-  img_list <- purrr::map(imgs, image_read)
-  
-  ## join the images together
-  img_joined <- image_join(img_list)
-  
-  ## animate at 2 frames per second
-  img_animated <- image_animate(img_joined)
-  
-  ## save to disk
-  image_write_video(image = img_animated,
-                    path = outpath)
-}
-
 # load files ------------------------------------------------------------------
 
 load_input <- function(video_path, mexca_path, image_folder_name){
@@ -111,7 +92,7 @@ load_input <- function(video_path, mexca_path, image_folder_name){
 
 # draw_face_boxes_on_frame ------------------------------------------------------------------
 
-draw_face_boxes_on_frame <- function(mexca_output, facial_landamarks = T, keep_video_frames = F, image_folder_name = NULL){
+draw_face_boxes_on_frame <- function(mexca_output, facial_landamarks = T, keep_video_frames = F, image_folder_name = NULL, session){
   
   box_minimal <- droplevels(mexca_output[,c('frame', 'time', 'FaceRectX', 'FaceRectY', 'FaceRectWidth', 'FaceRectHeight', names(mexca_output) [grepl( "fl" , names( mexca_output ) )])])
   frames_output_path <- paste0('video_frames_',tools::file_path_sans_ext(image_folder_name))
@@ -132,7 +113,12 @@ draw_face_boxes_on_frame <- function(mexca_output, facial_landamarks = T, keep_v
   
   # store x and y coordinates of facial_landmarks
   if (facial_landamarks == T){
+    progress <- Progress$new(session, min=0, max=max(seq_frames))
+    on.exit(progress$close())
+    progress$set(message = 'Extract annotations')
+    
     for (i in 1:nrow(box_minimal)){
+      progress$set(value = i)
       out_temp <- box_minimal[i,]%>% discard(~all(is.na(.) | . ==""))
       facial_landmarks <- out_temp[ , grepl( "fl" , names( out_temp ) ) ]
       facial_landmarks_df <- setNames(data.frame(facial_landmarks), c(names(out_temp) [grepl( "fl" , names( out_temp ) )]))
@@ -153,15 +139,14 @@ draw_face_boxes_on_frame <- function(mexca_output, facial_landamarks = T, keep_v
   img <- purrr::map(imgs, image_read)
   
   print('Overlaying facial landmarks and face boxes on image sequence')
-  # set up the progress bar
-  pb <- txtProgressBar(min = 0,      # Minimum value of the progress bar
-                       max = max(seq_frames), # Maximum value of the progress bar
-                       style = 3,    # Progress bar style (also available style = 1 and style = 2)
-                       width = 50,   # Progress bar width. Defaults to getOption("width")
-                       char = "=")   # Character used to create the bar
+  
+  progress <- Progress$new(session, min=0, max=max(seq_frames))
+  on.exit(progress$close())
+  progress$set(message = 'Annotate video',
+               detail = 'This may take a while...')
   
   for (i in seq_frames){
-    setTxtProgressBar(pb, i)
+    progress$set(value = i)
     img_plot <- image_draw(img[[i]])
     
     # draw face box
@@ -179,11 +164,11 @@ draw_face_boxes_on_frame <- function(mexca_output, facial_landamarks = T, keep_v
         
       }
     }
-    image_write(img_plot, paste0(names_frame_annotated_folder,"/frame_", i,'.png'), quality = 300)
     dev.off()
+    image_write(img_plot, paste0(names_frame_annotated_folder,"/frame_", i,'.png'))
+    
   }
   
-  close(pb) # Close the progress bar connection
   if (keep_video_frames == F){
     unlink('video_frames', recursive = T, force = T)
   }
@@ -220,3 +205,8 @@ plot_AUs <- function(dataframe){
   
 }
 
+# mexcaR cleanup: delete temporary folders -----------------------------------------------------
+cleanup <- function(frame_folder, annotated_frame_folder){
+  unlink(frame_folder, recursive = T, force = T)
+  unlink(annotated_frame_folder, recursive = T, force = T)
+}

@@ -10,44 +10,14 @@ rm(list = ls())
 
 # SOURCE CUSTOM FUNCTIONS  ----------------------------------------------------
 
-source('tools/mexca_fun.R')
+source('R/utils.R')
+source('R/ui.R')
 # UI - GENERAL --------------------------------------------------------------
 
 ui <- fillPage(
   titlePanel("mexcaR"),
-  fluidRow(
-    column(2,
-           wellPanel(
-             div(img(src = "mexca_logo_minimal.png",
-                     width = "70px", height = "70px"), style="text-align: center;")
-           ),
-           wellPanel(
-             h4("Upload mexca output"),
-             fileInput('your_csv',"choose csv file", accept = c('.csv'))
-           ),
-           wellPanel(
-             h4("Upload video"),
-             fileInput('your_mp4',"choose mp4 file", accept = c('.mp4'))
-           ),
-           wellPanel(
-             h4("Filter"),
-             uiOutput("slider")
-           )
-    ),
-    fluidRow(
-      column(5,
-             withLoader(plotOutput('frame_plot'), type = 'html', loader = 'loader3'),
-             wellPanel(
-               span(textOutput('text_output'),
-                    style='color:black'
-               )
-             ),
-      ),
-      column(4,
-             withLoader(plotOutput('au'), type = 'html', loader = 'loader3')
-      )
-    )
-  )
+  ui_minimal,
+  ui_display_data
 )
 
 
@@ -101,7 +71,7 @@ server <- function(input, output, session) {
   
   annotate_images <- reactive({
     mexca_data_clean <- tidy_mexca()
-    draw_face_boxes_on_frame(mexca_data_clean, keep_video_frames = F, facial_landamarks = T, image_folder_name = input_name())
+    draw_face_boxes_on_frame(mexca_data_clean, keep_video_frames = F, facial_landamarks = T, image_folder_name = input_name(), session)
   })
   
   plot_images <- reactive({
@@ -114,10 +84,10 @@ server <- function(input, output, session) {
       annotate_images()
       images_folder_name <- tools::file_path_sans_ext(input_name())
       imgs <- list.files(paste0('video_frames_annotated_', images_folder_name), full.names = T)
-      
     }
     
     selected_frame <- input$frame_selector
+    imgs <- gtools::mixedsort(imgs) #reorder the frames by last number
     png::readPNG(imgs[selected_frame]) -> img
     return(img)
   })
@@ -141,13 +111,12 @@ server <- function(input, output, session) {
     
     selected_frame <- input$frame_selector
     # word window of 15 frames
-    frame_seq <- seq(selected_frame-15,selected_frame+15)
+    frame_seq <- seq(selected_frame-15,selected_frame)
     
     as.character(predicted_speech%>%
                    filter(frame %in% frame_seq)%>%
                    pull(text_token) %>% unique())
   })
-  
   
   
   output$frame_plot <- renderPlot(ggimage(plot_images()), res = 96)
@@ -161,10 +130,81 @@ server <- function(input, output, session) {
       maximum_frame <- floor(av_video_info(input$your_mp4$datapath)$video['frames'])
     }
     
-    sliderInput("frame_selector", h5("Frame number"), min = 1, max = maximum_frame, value = 1, step = 1, animate = animationOptions(loop = F, interval = 900))
+    sliderInput("frame_selector", h5("Frame number"), min = 1, max = maximum_frame, value = 1, step = 1, animate = animationOptions(loop = F, interval = 800))
   })
   
+  output$download_tsv <- downloadHandler(
+    filename = function() {
+      if(!is.null(input$your_mp4)){
+        paste0(tools::file_path_sans_ext(input_name()), '.tsv')
+      } else {
+        paste0('debate_demo_processed','.tsv')
+      }
+    },
+    content = function(file) {
+      if(!is.null(input$your_mp4)){
+        vroom::vroom_write(tidy_mexca(), file)
+      } else {
+        vroom::vroom_write(read.csv('data/debate_output_tidy.csv'), file)
+      }
+    }
+  )
+  
+  output$download_mp4 <- downloadHandler(
+    filename = function() {
+      if(!is.null(input$your_mp4)){
+        paste0(tools::file_path_sans_ext(input_name()), 'annotated.mp4')
+      } else {
+        paste0('debate_demo_annotated','.mp4')
+      }
+    },
+    content = function(file) {
+      if(!is.null(input$your_mp4)){
+        maximum_frame <- floor(av_video_info(input$your_mp4$datapath)$video['framerate'])
+        images_folder_name <- tools::file_path_sans_ext(input_name())
+        imgs <- list.files(paste0('video_frames_annotated_', images_folder_name), full.names = T)
+        av::av_encode_video(input = gtools::mixedsort(imgs), 
+                            output = file, framerate = maximum_frame)
+      } else {
+        maximum_frame <- floor(av::av_video_info('data/debate.mp4')$video['framerate'])
+        imgs <- list.files('video_frames_annotated_demo', full.names = TRUE)
+        av::av_encode_video(input = gtools::mixedsort(imgs), 
+                            output = file, framerate = maximum_frame)
+      }
+    }
+  )
+  
+  output$preview <- DT::renderDataTable(DT::datatable({
+    if (is.null(input$your_csv)){
+      mexca_data_clean <- read.csv('data/debate_output_tidy.csv')
+      
+    } else {
+      mexca_data_clean <- tidy_mexca()
+    }
+    mexca_data_clean
+    
+  }, 
+  options = list(scrollY = "250px",
+                 scrollX = T,
+                 deferRender = TRUE,
+                 scroller = TRUE,
+                 paging = TRUE,
+                 autoWidth = TRUE,
+                 dom = 'lBfrtip',
+                 fixedColumns = TRUE), 
+  rownames = FALSE))
+  
+  output$plot_name <- renderText({
+    if(!is.null(input$your_mp4)){
+      title <- tools::file_path_sans_ext(input_name())
+    } else {
+      title <- 'Clinton vs Trump debate (2016)'
+    }
+    title
+  })
 }
 
 # RUN APP  --------------------------------------------------------------
 shinyApp(ui = ui, server = server)
+
+
